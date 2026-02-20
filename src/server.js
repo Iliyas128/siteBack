@@ -40,17 +40,18 @@ function authMiddleware(requiredRole) {
 
 // ---------- Auth ----------
 
-// Old gamer: пароль -> UserName (без логина по имени)
+// Old gamer: имя пользователя + пароль (одного пароля недостаточно — у разных игроков он может совпадать)
 app.post('/api/auth/player-login-old', async (req, res) => {
   try {
-    const { password } = req.body || {};
-    if (!password) return res.status(400).json({ error: 'missing_password' });
+    const { userName, password } = req.body || {};
+    if (!userName || !password) return res.status(400).json({ error: 'missing_fields' });
     const db = await getDb();
     const user = await db.collection(COLLECTIONS.users).findOne({
       isAdmin: false,
+      userName: String(userName).trim(),
       keyHash: hmacKeyHash(password),
     });
-    if (!user) return res.status(401).json({ error: 'invalid_password' });
+    if (!user) return res.status(401).json({ error: 'invalid_credentials' });
     const token = signToken({ sub: user.userName, role: 'player' });
     return res.json({ token, userName: user.userName, role: 'player' });
   } catch (e) {
