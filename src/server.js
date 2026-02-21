@@ -9,26 +9,36 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// CORS: allow frontend origin (e.g. https://a2.skyride.pro). Comma-separated in CORS_ORIGIN for multiple.
+// CORS: same pattern as working Flight Connect API (allow origin callback + options)
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean)
-  : ['https://a2.skyride.pro'];
+  : [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://a2.skyride.pro',
+      'http://a2.skyride.pro',
+      'https://www.a.skyride.pro',
+      'http://www.a.skyride.pro',
+      'https://g2.skyride.pro',
+      'http://g2.skyride.pro',
+    ];
 
-// CORS: set on every response so preflight and actual requests get headers even if proxy strips Origin
-function corsHeaders(req, res, next) {
-  const origin = req.headers.origin;
-  const allowOrigin = (origin && allowedOrigins.includes(origin)) ? origin : allowedOrigins[0];
-  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Max-Age', '86400');
-    return res.sendStatus(204);
-  }
-  next();
-}
-app.use(corsHeaders);
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      return callback(null, true);
+    }
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    console.warn(`CORS unknown origin: ${origin}`);
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+app.options('*', cors());
 app.use(express.json());
 
 function signToken(payload) {
