@@ -9,7 +9,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// CORS: same pattern as working Flight Connect API (allow origin callback + options)
+// CORS: allow frontend origins (a2.skyride.pro, Vercel previews, localhost)
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean)
   : [
@@ -21,24 +21,42 @@ const allowedOrigins = process.env.CORS_ORIGIN
       'http://www.a.skyride.pro',
       'https://g2.skyride.pro',
       'http://g2.skyride.pro',
+      'https://site-back-eta.vercel.app',
     ];
+
+function getAllowOrigin(origin) {
+  if (!origin) return allowedOrigins[0];
+  if (allowedOrigins.includes(origin)) return origin;
+  if (origin.endsWith('.vercel.app')) return origin;
+  return allowedOrigins[0];
+}
+
+// First: handle preflight and set CORS on every response (works on Vercel/serverless)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowOrigin = getAllowOrigin(origin);
+  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    return res.sendStatus(204);
+  }
+  next();
+});
 
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-      return callback(null, true);
-    }
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    console.warn(`CORS unknown origin: ${origin}`);
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) return callback(null, true);
+    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) return callback(null, true);
     return callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-
-app.options('*', cors());
 app.use(express.json());
 
 function signToken(payload) {
