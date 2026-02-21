@@ -14,31 +14,21 @@ const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean)
   : ['https://a2.skyride.pro'];
 
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true); // same-origin or server-to-server
-    if (allowedOrigins.includes(origin)) return cb(null, true);
-    return cb(null, true); // allow anyway in dev; set CORS_ORIGIN in prod to restrict
-  },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-}));
-// Explicit preflight response so CORS headers are always sent for OPTIONS
-app.use((req, res, next) => {
+// CORS: set on every response so preflight and actual requests get headers even if proxy strips Origin
+function corsHeaders(req, res, next) {
+  const origin = req.headers.origin;
+  const allowOrigin = (origin && allowedOrigins.includes(origin)) ? origin : allowedOrigins[0];
+  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   if (req.method === 'OPTIONS') {
-    const origin = req.headers.origin;
-    if (origin && allowedOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-    }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Access-Control-Max-Age', '86400');
     return res.sendStatus(204);
   }
   next();
-});
+}
+app.use(corsHeaders);
 app.use(express.json());
 
 function signToken(payload) {
